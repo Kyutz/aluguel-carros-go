@@ -4,10 +4,42 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+
+	"github.com/Kyutz/aluguel-carros-go/models"
 )
 
-// var templates = template.Must(template.ParseGlob("templates/*.html"))
+// Lista clientes
+func ClientesHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows, err := db.Query("SELECT id_cliente, nome, email, telefone, endereco, documento_identidade FROM clientes")
+		if err != nil {
+			http.Error(w, "Erro ao buscar clientes", 500)
+			log.Println("Erro query clientes:", err)
+			return
+		}
+		defer rows.Close()
 
+		var clientes []models.Cliente
+		for rows.Next() {
+			var c models.Cliente
+			err := rows.Scan(&c.ID, &c.Nome, &c.Email, &c.Telefone, &c.Endereco, &c.DocumentoIdentidade)
+			if err != nil {
+				http.Error(w, "Erro ao ler dados", 500)
+				log.Println("Erro scan cliente:", err)
+				return
+			}
+			clientes = append(clientes, c)
+		}
+
+		err = templates.ExecuteTemplate(w, "clientes.html", clientes)
+		if err != nil {
+			http.Error(w, "Erro ao renderizar template", 500)
+			log.Println("Erro template clientes:", err)
+		}
+	}
+}
+
+// Formulário para criar cliente
 func ClienteCreateFormHandler(w http.ResponseWriter, r *http.Request) {
 	err := templates.ExecuteTemplate(w, "cliente_create.html", nil)
 	if err != nil {
@@ -15,6 +47,7 @@ func ClienteCreateFormHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Handler para salvar novo cliente
 func ClienteCreateHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

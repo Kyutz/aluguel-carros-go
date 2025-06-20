@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lista de Clientes</title>
+</head>
+<body>
+    <h1>Clientes</h1>
+    <a href="/clientes/criar">Criar novo cliente</a>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Telefone</th>
+                <th>Endereço</th>
+                <th>Documento Identidade</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .}}
+            <tr>
+                <td>{{.ID}}</td>
+                <td>{{.Nome}}</td>
+                <td>{{.Email}}</td>
+                <td>{{.Telefone}}</td>
+                <td>{{.Endereco}}</td>
+                <td>{{.DocumentoIdentidade}}</td>
+            </tr>
+            {{else}}
+            <tr><td colspan="6">Nenhum cliente encontrado.</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</body>
+</html>
