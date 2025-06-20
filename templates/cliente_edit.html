@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Editar Cliente</title>
+</head>
+<body>
+    <h1>Editar Cliente</h1>
+    <form action="/clientes/editar" method="post">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <label>Nome: <input type="text" name="nome" value="{{.Nome}}"></label><br>
+        <label>Email: <input type="email" name="email" value="{{.Email}}"></label><br>
+        <label>Telefone: <input type="text" name="telefone" value="{{.Telefone}}"></label><br>
+        <label>Endereço: <input type="text" name="endereco" value="{{.Endereco}}"></label><br>
+        <label>Documento Identidade: <input type="text" name="documento_identidade" value="{{.DocumentoIdentidade}}"></label><br>
+        <button type="submit">Salvar</button>
+    </form>
+    <a href="/clientes">Voltar para lista</a>
+</body>
+</html>

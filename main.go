@@ -37,6 +37,17 @@ func main() {
 	http.HandleFunc("/logout", handlers.LogoutHandler)
 	http.HandleFunc("/dashboard", handlers.DashboardHandler)
 	http.HandleFunc("/clientes", handlers.ClientesHandler(db))
+	http.HandleFunc("/clientes/deletar", handlers.ClienteDeleteHandler(db))
+
+	http.HandleFunc("/clientes/editar", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.ClienteEditFormHandler(db)(w, r) // mostrar formulário preenchido com dados do cliente
+		} else if r.Method == http.MethodPost {
+			handlers.ClienteEditHandler(db)(w, r) // processar envio do formulário e salvar alterações
+		} else {
+			http.Error(w, "Método não permitido", 405)
+		}
+	})
 
 	log.Println("Servidor rodando na porta 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

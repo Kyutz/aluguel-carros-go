@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Lista de Clientes</title>
 </head>
+
 <body>
+    <a href="/dashboard">← Voltar para o Dashboard</a>
     <h1>Clientes</h1>
     <a href="/clientes/criar">Criar novo cliente</a>
     <table border="1" cellpadding="5" cellspacing="0">
@@ -15,6 +18,7 @@
                 <th>Telefone</th>
                 <th>Endereço</th>
                 <th>Documento Identidade</th>
+                <th>Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -26,11 +30,26 @@
                 <td>{{.Telefone}}</td>
                 <td>{{.Endereco}}</td>
                 <td>{{.DocumentoIdentidade}}</td>
+                <td>
+                    <form action="/clientes/editar" method="get" style="display:inline;">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit">Editar</button>
+                    </form>
+
+                    <form action="/clientes/deletar?id={{.ID}}" method="post" style="display:inline;"
+                        onsubmit="return confirm('Confirma a exclusão do cliente?');">
+                        <button type="submit">Deletar</button>
+                    </form>
+                </td>
+
             </tr>
             {{else}}
-            <tr><td colspan="6">Nenhum cliente encontrado.</td></tr>
+            <tr>
+                <td colspan="7">Nenhum cliente encontrado.</td>
+            </tr>
             {{end}}
         </tbody>
     </table>
 </body>
+
 </html>
