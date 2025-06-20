@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+type Usuario struct {
+	ID           int    `db:"id_usuario"`
+	Username     string `db:"username"`
+	PasswordHash string `db:"password_hash"`
+	Papel        string `db:"papel"`
+}
+
 type Cliente struct {
 	ID                  int    `db:"id_cliente"`
 	UserID              int    `db:"user_id"` // Relacionamento com usuário (planejado)
