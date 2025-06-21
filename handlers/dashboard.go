@@ -1,28 +1,23 @@
 package handlers
 
 import (
-	"log"
+	"encoding/json"
 	"net/http"
 )
 
+// DashboardHandler retorna dados básicos do usuário autenticado
 func DashboardHandler(w http.ResponseWriter, r *http.Request) {
-	// Verifica cookie de sessão
 	cookie, err := r.Cookie("session")
 	if err != nil || cookie.Value == "" {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Usuário não autenticado"})
 		return
 	}
 
-	// Você pode passar dados para o template, como o nome do usuário
-	data := struct {
-		Usuario string
-	}{
-		Usuario: cookie.Value,
-	}
-
-	err = templates.ExecuteTemplate(w, "dashboard.html", data)
-	if err != nil {
-		log.Println("Erro executando template:", err)
-		http.Error(w, "Erro interno", http.StatusInternalServerError)
-	}
+	// Retorna o nome do usuário da sessão
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"usuario": cookie.Value,
+		"msg":     "Bem-vindo ao dashboard",
+	})
 }

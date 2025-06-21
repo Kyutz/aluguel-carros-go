@@ -2,151 +2,181 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/Kyutz/aluguel-carros-go/models"
 )
 
-// Lista clientes
+// Middleware simples para checar sessão via cookie "session"
+func checkSession(w http.ResponseWriter, r *http.Request) bool {
+	cookie, err := r.Cookie("session")
+	if err != nil || cookie.Value == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Usuário não autenticado"})
+		return false
+	}
+	return true
+}
+
+// Listar todos clientes (GET /clientes)
 func ClientesHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows, err := db.Query("SELECT id_cliente, nome, email, telefone, endereco, documento_identidade FROM clientes")
-		if err != nil {
-			http.Error(w, "Erro ao buscar clientes", 500)
-			log.Println("Erro query clientes:", err)
+		if !checkSession(w, r) {
 			return
 		}
-		defer rows.Close()
 
-		var clientes []models.Cliente
-		for rows.Next() {
-			var c models.Cliente
-			err := rows.Scan(&c.ID, &c.Nome, &c.Email, &c.Telefone, &c.Endereco, &c.DocumentoIdentidade)
-			if err != nil {
-				http.Error(w, "Erro ao ler dados", 500)
-				log.Println("Erro scan cliente:", err)
-				return
-			}
-			clientes = append(clientes, c)
-		}
-
-		err = templates.ExecuteTemplate(w, "clientes.html", clientes)
+		clientes, err := models.GetAllClientes(db)
 		if err != nil {
-			http.Error(w, "Erro ao renderizar template", 500)
-			log.Println("Erro template clientes:", err)
+			log.Println("Erro buscando clientes:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao buscar clientes"})
+			return
 		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(clientes)
 	}
 }
 
-// Formulário para criar cliente
-func ClienteCreateFormHandler(w http.ResponseWriter, r *http.Request) {
-	err := templates.ExecuteTemplate(w, "cliente_create.html", nil)
-	if err != nil {
-		http.Error(w, "Erro ao carregar formulário", 500)
-	}
-}
-
-// Handler para salvar novo cliente
+// Criar novo cliente (POST /clientes)
+// Em handlers/clientes.go
 func ClienteCreateHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 1. Verificação de sessão (middleware)
+		if !checkSession(w, r) {
+			// checkSession já envia a resposta de erro (401 Unauthorized)
+			return
+		}
+
+		// 2. Verificação do método HTTP
 		if r.Method != http.MethodPost {
-			http.Redirect(w, r, "/clientes/criar", http.StatusSeeOther)
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 			return
 		}
 
-		nome := r.FormValue("nome")
-		email := r.FormValue("email")
-		telefone := r.FormValue("telefone")
-		endereco := r.FormValue("endereco")
-		documento := r.FormValue("documento_identidade")
-
-		if nome == "" {
-			http.Error(w, "Nome é obrigatório", 400)
-			return
+		var input struct {
+			models.Cliente
+			Senha    string `json:"senha"`
+			Username string `json:"username"` // Capturar username da entrada JSON
 		}
 
-		_, err := db.Exec(`INSERT INTO clientes (nome, email, telefone, endereco, documento_identidade) VALUES (?, ?, ?, ?, ?)`,
-			nome, email, telefone, endereco, documento)
+		err := json.NewDecoder(r.Body).Decode(&input)
 		if err != nil {
-			log.Println("Erro inserindo cliente:", err)
-			http.Error(w, "Erro ao salvar cliente", 500)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "JSON inválido"})
 			return
 		}
 
-		http.Redirect(w, r, "/clientes", http.StatusSeeOther)
+		// Atribua o username capturado à struct Cliente
+		input.Cliente.Username = input.Username
+
+		if input.Nome == "" || input.Senha == "" || input.Username == "" { // Também verificar Username
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Nome, senha e nome de usuário são obrigatórios"})
+			return
+		}
+
+		err = models.CreateCliente(db, input.Cliente, input.Senha)
+		if err != nil {
+			log.Println("Erro criando cliente:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao salvar cliente"})
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Cliente criado com sucesso"})
 	}
 }
 
+// Deletar cliente (DELETE /clientes?id=)
 func ClienteDeleteHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		if !checkSession(w, r) {
 			return
 		}
 
-		id := r.URL.Query().Get("id")
-		if id == "" {
-			http.Error(w, "ID do cliente é obrigatório", http.StatusBadRequest)
+		if r.Method != http.MethodDelete {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Método não permitido"})
 			return
 		}
 
-		_, err := db.Exec("DELETE FROM clientes WHERE id_cliente = ?", id)
-		if err != nil {
-			http.Error(w, "Erro ao deletar cliente", http.StatusInternalServerError)
-			return
-		}
-
-		http.Redirect(w, r, "/clientes", http.StatusSeeOther)
-	}
-}
-
-func ClienteEditFormHandler(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.URL.Query().Get("id")
 		if idStr == "" {
-			http.Error(w, "ID do cliente não fornecido", http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "ID do cliente é obrigatório"})
 			return
 		}
 
-		// Buscar cliente no DB pelo ID
-		var c models.Cliente
-		err := db.QueryRow("SELECT id_cliente, nome, email, telefone, endereco, documento_identidade FROM clientes WHERE id_cliente = ?", idStr).
-			Scan(&c.ID, &c.Nome, &c.Email, &c.Telefone, &c.Endereco, &c.DocumentoIdentidade)
+		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			http.Error(w, "Cliente não encontrado", http.StatusNotFound)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "ID inválido"})
 			return
 		}
 
-		// Renderizar template de edição com os dados do cliente
-		err = templates.ExecuteTemplate(w, "cliente_edit.html", c)
+		err = models.DeleteCliente(db, id)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Println("Erro deletando cliente:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao deletar cliente"})
+			return
 		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Cliente deletado com sucesso"})
 	}
 }
 
+// Editar cliente (PUT /clientes?id=)
 func ClienteEditHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		if !checkSession(w, r) {
 			return
 		}
 
-		id := r.FormValue("id")
-		nome := r.FormValue("nome")
-		email := r.FormValue("email")
-		telefone := r.FormValue("telefone")
-		endereco := r.FormValue("endereco")
-		documento := r.FormValue("documento_identidade")
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Método não permitido"})
+			return
+		}
 
-		_, err := db.Exec(`UPDATE clientes SET nome = ?, email = ?, telefone = ?, endereco = ?, documento_identidade = ? WHERE id_cliente = ?`,
-			nome, email, telefone, endereco, documento, id)
+		idStr := r.URL.Query().Get("id")
+		if idStr == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "ID do cliente é obrigatório"})
+			return
+		}
+		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			http.Error(w, "Erro ao atualizar cliente", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "ID inválido"})
 			return
 		}
 
-		http.Redirect(w, r, "/clientes", http.StatusSeeOther)
+		var c models.Cliente
+		err = json.NewDecoder(r.Body).Decode(&c)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "JSON inválido"})
+			return
+		}
+
+		c.ID = id
+
+		err = models.UpdateCliente(db, c)
+		if err != nil {
+			log.Println("Erro atualizando cliente:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao atualizar cliente"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Cliente atualizado com sucesso"})
 	}
 }

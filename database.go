@@ -33,8 +33,11 @@ func SetupDatabase() {
         email TEXT,
         telefone TEXT,
         endereco TEXT,
-        documento_identidade TEXT
+        documento_identidade TEXT,
+        username TEXT UNIQUE
     );`
+
+	// database.go (apenas o trecho createCarros)
 
 	createCarros := `
     CREATE TABLE IF NOT EXISTS carros (
@@ -44,7 +47,8 @@ func SetupDatabase() {
         ano INTEGER,
         placa TEXT UNIQUE,
         cor TEXT,
-        disponibilidade BOOLEAN NOT NULL
+        disponibilidade BOOLEAN NOT NULL DEFAULT TRUE, 
+        valor_diaria REAL NOT NULL 
     );`
 
 	createLocacoes := `

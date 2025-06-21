@@ -1,53 +1,39 @@
 package main
 
 import (
-	"html/template"
 	"log"
 	"net/http"
 
 	"github.com/Kyutz/aluguel-carros-go/handlers"
 )
 
-var templates = template.Must(template.ParseGlob("templates/*.html"))
-
 func main() {
 	SetupDatabase()
 	defer db.Close()
 
-	http.HandleFunc("/clientes/criar", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handlers.ClienteCreateFormHandler(w, r)
-		} else if r.Method == http.MethodPost {
-			handlers.ClienteCreateHandler(db)(w, r)
-		} else {
-			http.Error(w, "Método não permitido", 405)
-		}
-	})
+	// Autenticação
+	http.HandleFunc("/login", handlers.LoginJSONHandler(db)) // POST /login
+	http.HandleFunc("/logout", handlers.LogoutJSONHandler)   // GET /logout
 
-	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handlers.LoginFormHandler(w, r)
-		} else if r.Method == http.MethodPost {
-			handlers.LoginHandler(db)(w, r)
-		} else {
-			http.Error(w, "Método não permitido", 405)
-		}
-	})
+	// CRUD de carros
+	http.HandleFunc("/carros", handlers.ListarCarrosHandler(db))             // GET
+	http.HandleFunc("/carros/criar", handlers.CriarCarroHandler(db))         // POST
+	http.HandleFunc("/carros/atualizar", handlers.AtualizarCarroHandler(db)) // PUT (emulado via POST)
+	http.HandleFunc("/carros/deletar", handlers.DeletarCarroHandler(db))     // POST (emulando DELETE)
 
-	http.HandleFunc("/logout", handlers.LogoutHandler)
-	http.HandleFunc("/dashboard", handlers.DashboardHandler)
-	http.HandleFunc("/clientes", handlers.ClientesHandler(db))
-	http.HandleFunc("/clientes/deletar", handlers.ClienteDeleteHandler(db))
+	// Cliente
+	http.HandleFunc("/clientes", handlers.ClientesHandler(db))            // GET
+	http.HandleFunc("/clientes/criar", handlers.ClienteCreateHandler(db)) // POST
+	http.HandleFunc("/clientes/editar", handlers.ClienteEditHandler(db))  // POST
 
-	http.HandleFunc("/clientes/editar", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handlers.ClienteEditFormHandler(db)(w, r) // mostrar formulário preenchido com dados do cliente
-		} else if r.Method == http.MethodPost {
-			handlers.ClienteEditHandler(db)(w, r) // processar envio do formulário e salvar alterações
-		} else {
-			http.Error(w, "Método não permitido", 405)
-		}
-	})
+	// Aluguel
+	http.HandleFunc("/carros/disponiveis", handlers.CarrosDisponiveisHandler(db)) // GET
+	http.HandleFunc("/aluguel", handlers.CriarLocacaoHandler(db))                 // POST
+	http.HandleFunc("/minhas-locacoes", handlers.MinhasLocacoesHandler(db))       // GET
+
+	// Pagamento
+	http.HandleFunc("/pagamento", handlers.RealizarPagamentoHandler(db))  // POST
+	http.HandleFunc("/pagamentos", handlers.PagamentosClienteHandler(db)) // GET
 
 	log.Println("Servidor rodando na porta 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
